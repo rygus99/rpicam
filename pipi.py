@@ -63,17 +63,29 @@ root.title("Hand Piano Game")
 canvas = tk.Canvas(root, width=640, height=300, bg="white")
 canvas.pack()
 
-# 8개 건반(도레미파솔라시도)
+# 8개 건반(도레미파솔라시도) + 음계/손가락 개수 표시
 keys = []
+key_labels = []
 for i in range(8):
     x0 = i * 80
     x1 = x0 + 80
-    rect = canvas.create_rectangle(x0, 100, x1, 300, fill="white", outline="black", width=2)
+    rect = canvas.create_rectangle(x0, 100, x1, 300,
+                                   fill="white", outline="black", width=2)
     keys.append(rect)
 
-score_text = canvas.create_text(320, 20, text="Score: 0", font=("Arial", 16), fill="black")
+    # 건반 안에 음 이름 + 손가락 개수 표시
+    note_name, freq = note_freq[i+1]
+    label = canvas.create_text(
+        x0 + 40, 200,   # 건반 중앙 위치
+        text=f"{note_name}\n({i+1} 손가락)",
+        font=("Arial", 12, "bold"),
+        fill="black"
+    )
+    key_labels.append(label)
 
-score = 0
+# 점수 표시
+score_text = canvas.create_text(320, 20, text="Score: 0",
+                                font=("Arial", 16), fill="black")
 current_note = None
 note_object = None
 
@@ -166,3 +178,4 @@ t = threading.Thread(target=camera_loop, daemon=True)
 t.start()
 spawn_note()
 root.mainloop()
+
