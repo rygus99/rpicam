@@ -4,6 +4,8 @@ import RPi.GPIO as GPIO
 from picamera2 import Picamera2
 import tkinter as tk
 import threading
+import random
+import time
 
 # -------------------------------
 # 부저 GPIO 설정
@@ -27,7 +29,7 @@ note_freq = {
 }
 
 # -------------------------------
-# MediaPipe Hands 설정 (정확도 ↑)
+# MediaPipe Hands 설정
 # -------------------------------
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
@@ -45,7 +47,6 @@ def count_fingers(hand_landmarks, handedness="Right"):
         if hand_landmarks.landmark[tip].y < hand_landmarks.landmark[tip - 2].y:
             count += 1
 
-    # 엄지 판별: 손 방향(왼/오른손)에 따라 다르게 계산
     if handedness == "Right":
         if hand_landmarks.landmark[4].x < hand_landmarks.landmark[3].x:
             count += 1
@@ -55,11 +56,11 @@ def count_fingers(hand_landmarks, handedness="Right"):
     return count
 
 # -------------------------------
-# Tkinter GUI (피아노 건반)
+# Tkinter GUI (피아노 건반 + 게임 요소)
 # -------------------------------
 root = tk.Tk()
-root.title("Hand Piano")
-canvas = tk.Canvas(root, width=640, height=200, bg="white")
+root.title("Hand Piano Game")
+canvas = tk.Canvas(root, width=640, height=300, bg="white")
 canvas.pack()
 
 # 8개 건반(도레미파솔라시도)
@@ -67,16 +68,39 @@ keys = []
 for i in range(8):
     x0 = i * 80
     x1 = x0 + 80
-    rect = canvas.create_rectangle(x0, 0, x1, 200, fill="white", outline="black", width=2)
+    rect = canvas.create_rectangle(x0, 100, x1, 300, fill="white", outline="black", width=2)
     keys.append(rect)
 
+score_text = canvas.create_text(320, 20, text="Score: 0", font=("Arial", 16), fill="black")
+
+score = 0
+current_note = None
+note_object = None
+
+def spawn_note():
+    """랜덤 음계 노트 생성"""
+    global current_note, note_object
+    current_note = random.randint(1, 8)
+    note_name = note_freq[current_note][0]
+    if note_object:
+        canvas.delete(note_object)
+    note_object = canvas.create_text(current_note*80 - 40, 60, text=note_name,
+                                     font=("Arial", 20, "bold"), fill="red")
+    root.after(3000, spawn_note)  # 3초마다 새로운 노트 등장
+
 def highlight_key(fingers):
-    # 모든 건반 흰색 초기화
+    """누른 건반 시각화"""
     for k in keys:
         canvas.itemconfig(k, fill="white")
     if fingers in note_freq:
         canvas.itemconfig(keys[fingers - 1], fill="lightblue")
-        root.title(f"Hand Piano - {note_freq[fingers][0]}")
+
+def check_answer(fingers):
+    """사용자가 낸 손가락 수가 정답인지 확인"""
+    global score, current_note
+    if fingers == current_note:
+        score += 10
+        canvas.itemconfig(score_text, text=f"Score: {score}")
 
 # -------------------------------
 # Picamera2 초기화
@@ -87,6 +111,7 @@ picam2.configure(preview_config)
 picam2.start()
 
 def camera_loop():
+    global current_note
     try:
         while True:
             frame = picam2.capture_array()
@@ -112,15 +137,16 @@ def camera_loop():
                 pwm.start(50)
                 pwm.ChangeFrequency(freq)
                 highlight_key(finger_count)
+                check_answer(finger_count)
             else:
                 pwm.stop()
                 highlight_key(0)
 
-            # 화면에 손가락 개수 표시
+            # 손가락 개수 표시
             cv2.putText(frame, f"Fingers: {finger_count}", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-            cv2.imshow("MediaPipe Hand Piano", frame)
+            cv2.imshow("Hand Piano Game", frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
@@ -138,4 +164,5 @@ def camera_loop():
 # -------------------------------
 t = threading.Thread(target=camera_loop, daemon=True)
 t.start()
+spawn_note()
 root.mainloop()
