@@ -86,6 +86,7 @@ for i in range(8):
 # 점수 표시
 score_text = canvas.create_text(320, 20, text="Score: 0",
                                 font=("Arial", 16), fill="black")
+score = 0
 current_note = None
 note_object = None
 
@@ -178,4 +179,5 @@ t = threading.Thread(target=camera_loop, daemon=True)
 t.start()
 spawn_note()
 root.mainloop()
+
 
