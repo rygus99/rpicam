@@ -27,21 +27,31 @@ note_freq = {
 }
 
 # -------------------------------
-# MediaPipe Hand Tracking 설정
+# MediaPipe Hands 설정 (정확도 ↑)
 # -------------------------------
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
-hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
+hands = mp_hands.Hands(
+    max_num_hands=1,
+    min_detection_confidence=0.8,
+    min_tracking_confidence=0.8
+)
 
-def count_fingers(hand_landmarks):
-    """손가락 개수 세기"""
+def count_fingers(hand_landmarks, handedness="Right"):
+    """손가락 개수 세기 (왼손/오른손 구분)"""
     tips = [8, 12, 16, 20]  # 검지, 중지, 약지, 새끼
     count = 0
     for tip in tips:
         if hand_landmarks.landmark[tip].y < hand_landmarks.landmark[tip - 2].y:
             count += 1
-    if hand_landmarks.landmark[4].x < hand_landmarks.landmark[3].x:  # 엄지
-        count += 1
+
+    # 엄지 판별: 손 방향(왼/오른손)에 따라 다르게 계산
+    if handedness == "Right":
+        if hand_landmarks.landmark[4].x < hand_landmarks.landmark[3].x:
+            count += 1
+    else:  # Left
+        if hand_landmarks.landmark[4].x > hand_landmarks.landmark[3].x:
+            count += 1
     return count
 
 # -------------------------------
@@ -91,9 +101,10 @@ def camera_loop():
             result = hands.process(rgb)
 
             finger_count = 0
-            if result.multi_hand_landmarks:
+            if result.multi_hand_landmarks and result.multi_handedness:
+                handedness = result.multi_handedness[0].classification[0].label
                 for hand_landmarks in result.multi_hand_landmarks:
-                    finger_count = count_fingers(hand_landmarks)
+                    finger_count = count_fingers(hand_landmarks, handedness)
                     mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
             if finger_count in note_freq:
@@ -104,6 +115,10 @@ def camera_loop():
             else:
                 pwm.stop()
                 highlight_key(0)
+
+            # 화면에 손가락 개수 표시
+            cv2.putText(frame, f"Fingers: {finger_count}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
             cv2.imshow("MediaPipe Hand Piano", frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
